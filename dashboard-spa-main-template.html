@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="dark light">
+  <title>Rewst App</title>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    // Tailwind class-based dark mode — flip 'dark' class on <html>
+    tailwind.config = { darkMode: 'class' };
+  </script>
+  <script>
+    // Apply persisted theme BEFORE rendering to avoid a light-flash.
+    // Default is dark — only switch to light when the user has explicitly
+    // opted in via the toggle. System preference is ignored on purpose
+    // (Rewst dashboards look better in dark mode and that's our default).
+    // Also set bg via inline style — highest priority — so over-scroll
+    // bounce doesn't reveal the browser's default white html bg.
+    (function() {
+      var stored = null;
+      try { stored = localStorage.getItem('rewst-roadmap-theme'); } catch (e) {}
+      var isDark = stored !== 'light';
+      var bg = isDark ? '#0F172A' : '#ECEFF1';
+      if (isDark) document.documentElement.classList.add('dark');
+      document.documentElement.style.backgroundColor = bg;
+      // Wait for body to exist, then set it too (covers iOS rubber-band where
+      // body is the scroll context).
+      var setBodyBg = function() {
+        if (document.body) document.body.style.backgroundColor = bg;
+      };
+      if (document.body) setBodyBg();
+      else document.addEventListener('DOMContentLoaded', setBodyBg);
+    })();
+  </script>
+
+  <!-- Poppins Font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Material Design Icons -->
+  <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+
+  <!-- Lodash -->
+  <script src="https://cdn.jsdelivr.net/npm/lodash@4.17.21/lodash.min.js"></script>
+
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
+
+  <!-- Rewst CSS Theme Overlay -->
+  <style>
+    {{ CSS_THEME }}
+  </style>
+</head>
+<body class="bg-rewst-light">
+
+  <!-- Sidebar -->
+  <div id="sidebar" class="sidebar fixed left-0 top-0 h-screen bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col z-50">
+
+    <!-- Sidebar Header -->
+    <div class="p-4 border-b border-gray-200 dark:border-gray-700 flex items-center justify-between">
+      <div class="flex items-center gap-2 overflow-hidden">
+        <span class="material-icons text-rewst-teal">apps</span>
+        <span class="nav-text font-semibold text-rewst-black whitespace-nowrap">My App</span>
+      </div>
+      <button id="toggle-sidebar" class="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded">
+        <span class="material-icons text-gray-600 dark:text-gray-300">chevron_left</span>
+      </button>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="flex-1 p-4 overflow-y-auto">
+
+      <!-- Pages Section -->
+      <div class="mb-2">
+        <div class="flex items-center gap-2 px-3 py-2 text-sm font-medium text-rewst-gray">
+          <span class="material-icons text-lg">menu</span>
+          <span class="nav-text">Pages</span>
+        </div>
+
+        <div class="sub-nav ml-4 mt-1 space-y-1">
+          <a href="#" class="sidebar-item active flex items-center gap-3 px-3 py-2 rounded text-sm text-rewst-dark-gray" data-page="roadmap">
+            <span class="material-icons text-lg">map</span>
+            <span class="nav-text">Roadmap</span>
+          </a>
+        </div>
+      </div>
+
+    </nav>
+
+  </div>
+
+  <!-- Filter Slide-Out Drawer -->
+  <div id="filter-overlay" class="fixed inset-0 bg-black bg-opacity-50 z-40 hidden transition-opacity duration-300"></div>
+
+  <div id="filter-drawer" class="fixed top-0 right-0 h-full w-96 bg-white dark:bg-gray-800 shadow-2xl z-50 transform translate-x-full transition-transform duration-300">
+    <!-- Drawer Header -->
+    <div class="flex items-center justify-between px-8 py-4 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
+      <h3 id="drawer-title" class="text-base font-semibold text-rewst-black">Edit</h3>
+      <button id="close-filter-drawer" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors">
+        <span class="material-icons">close</span>
+      </button>
+    </div>
+
+    <!-- Drawer Body — populated dynamically by the active page -->
+    <div id="drawer-body" class="p-6 overflow-y-auto" style="height: calc(100% - 65px);">
+      <!-- Page modules render edit forms / filter controls / etc. into this container -->
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <div id="main-content" class="main-content min-h-screen">
+
+    <!-- Sticky Header -->
+    <div id="sticky-header" class="sticky-header py-4 px-8">
+      <div class="flex items-center justify-between">
+        <div>
+          <h1 class="text-2xl font-semibold text-rewst-black transition-all">Automation Roadmap</h1>
+          <p class="header-subtitle text-sm text-rewst-gray">Track, prioritize, and manage your automation journey</p>
+        </div>
+        <div class="flex items-center gap-3">
+
+          <!-- + Add Automation Button (opens edit drawer in 'new' mode) -->
+          <div id="add-button-container">
+            <button id="add-automation-btn" class="btn-secondary flex items-center gap-2">
+              <span class="material-icons">add</span>
+              <span class="btn-text">Add Automation</span>
+            </button>
+          </div>
+
+          <!-- Print / Save-as-PDF (triggers window.print(); CSS hides chrome) -->
+          <div id="print-button-container">
+            <button id="print-btn" class="btn-secondary flex items-center justify-center p-2" title="Print or Save as PDF" aria-label="Print or save as PDF">
+              <span class="material-icons">print</span>
+            </button>
+          </div>
+
+          <!-- Theme Toggle (sun/moon) -->
+          <div id="theme-toggle-container">
+            <button id="theme-toggle-btn" class="btn-secondary flex items-center justify-center p-2" title="Toggle dark mode" aria-label="Toggle dark mode">
+              <span class="material-icons" id="theme-toggle-icon">dark_mode</span>
+            </button>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- Page Content -->
+    <div class="px-8 pb-8 pt-6">
+
+      <!-- Roadmap Page -->
+      <div id="page-roadmap" class="page-content">
+        <!-- Rendered by roadmap.js -->
+      </div>
+
+    </div>
+
+  </div>
+
+  <script type="module">
+    // ============================================
+    // REWST APP TEMPLATE - Main Script
+    // ============================================
+
+    // Import RewstApp GraphQL library
+    {{ GRAPHQL_LIB }}
+
+    // Import RewstDOM builder
+    {{ DOM_BUILDER }}
+
+    // App initialization
+    (async function() {
+
+      // ============================================
+      // DEBUG MODE
+      // ============================================
+      window.DEBUG_MODE = true;
+      if (window.parent) {
+        window.parent.DEBUG_MODE = true;
+      }
+
+      function debugLog(...args) {
+        if (window.DEBUG_MODE) console.log(...args);
+      }
+      function debugWarn(...args) {
+        if (window.DEBUG_MODE) console.warn(...args);
+      }
+      function debugError(...args) {
+        if (window.DEBUG_MODE) console.error(...args);
+      }
+
+      // ============================================
+      // INITIALIZE REWST
+      // ============================================
+      const rewst = new RewstApp({ debug: window.DEBUG_MODE });
+
+      try {
+        await rewst.init();
+        debugLog("RewstApp initialized");
+      } catch (error) {
+        debugError("Failed to initialize RewstApp:", error);
+        if (error.isSessionExpired) {
+          RewstDOM.showSessionExpired(error.loginUrl);
+          return;
+        }
+        RewstDOM.showError("Failed to initialize app");
+        return;
+      }
+
+      // Make globally accessible (for console debugging and page scripts)
+      window.rewst = rewst;
+      window.rewstApp = rewst;
+      window.RewstDOM = RewstDOM;
+
+      if (window.parent) {
+        window.parent.rewst = rewst;
+        window.parent.rewstApp = rewst;
+        window.parent.RewstDOM = RewstDOM;
+        debugLog("Exposed rewst and RewstDOM to parent console");
+      }
+
+      // ============================================
+      // PAGE CONFIGURATION
+      // ============================================
+      const pages = {
+        roadmap: {
+          title: 'Automation Roadmap',
+          subtitle: 'Track, prioritize, and manage your automation journey',
+          render: renderRoadmapPage
+        }
+      };
+
+      let currentPage = 'roadmap';
+
+      // ============================================
+      // SIDEBAR TOGGLE
+      // ============================================
+      const sidebar = document.getElementById('sidebar');
+      const mainContent = document.getElementById('main-content');
+      const toggleBtn = document.getElementById('toggle-sidebar');
+      const toggleIcon = toggleBtn.querySelector('.material-icons');
+
+      toggleBtn.addEventListener('click', () => {
+        sidebar.classList.toggle('collapsed');
+        mainContent.classList.toggle('sidebar-collapsed');
+        toggleIcon.textContent = sidebar.classList.contains('collapsed') ? 'chevron_right' : 'chevron_left';
+      });
+
+      // ============================================
+      // PAGE NAVIGATION
+      // ============================================
+      const navLinks = document.querySelectorAll('.sidebar-item');
+      const pageContainers = document.querySelectorAll('.page-content');
+
+      navLinks.forEach(link => {
+        link.addEventListener('click', (e) => {
+          e.preventDefault();
+          const pageName = link.dataset.page;
+          switchPage(pageName);
+        });
+      });
+
+      function switchPage(pageName) {
+        if (!pages[pageName]) return;
+
+        currentPage = pageName;
+
+        // Update active state in sidebar
+        navLinks.forEach(l => l.classList.remove('active'));
+        document.querySelector(`[data-page="${pageName}"]`).classList.add('active');
+
+        // Hide all pages, show selected
+        pageContainers.forEach(page => page.style.display = 'none');
+        document.getElementById(`page-${pageName}`).style.display = 'block';
+
+        // Update header
+        const pageConfig = pages[pageName];
+        document.querySelector('#sticky-header h1').textContent = pageConfig.title;
+        document.querySelector('#sticky-header .header-subtitle').textContent = pageConfig.subtitle;
+
+        // Render page content
+        pageConfig.render();
+      }
+
+      // ============================================
+      // STICKY HEADER SCROLL BEHAVIOR
+      // ============================================
+      const stickyHeader = document.getElementById('sticky-header');
+      let lastScrollTop = 0;
+      let isHeaderHidden = false;
+      let isScrolledState = false;
+      let scrollAccumulator = 0;
+      let scrollTimeout = null;
+
+      const SCROLL_THRESHOLD = 50;
+      const SCROLL_HYSTERESIS = 30;
+      const HIDE_THRESHOLD = 150;
+      const SCROLL_ACCUMULATOR_THRESHOLD = 100;
+      const SCROLL_RESET_DELAY = 200;
+
+      window.addEventListener('scroll', () => {
+        const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+        const scrollDelta = scrollTop - lastScrollTop;
+
+        if ((scrollAccumulator > 0 && scrollDelta < 0) || (scrollAccumulator < 0 && scrollDelta > 0)) {
+          scrollAccumulator = 0;
+        }
+        scrollAccumulator += scrollDelta;
+
+        clearTimeout(scrollTimeout);
+        scrollTimeout = setTimeout(() => { scrollAccumulator = 0; }, SCROLL_RESET_DELAY);
+
+        if (!isScrolledState && scrollTop > SCROLL_THRESHOLD) {
+          isScrolledState = true;
+          stickyHeader.classList.add('scrolled');
+        } else if (isScrolledState && scrollTop < (SCROLL_THRESHOLD - SCROLL_HYSTERESIS)) {
+          isScrolledState = false;
+          stickyHeader.classList.remove('scrolled');
+        }
+
+        if (scrollTop > HIDE_THRESHOLD) {
+          if (scrollAccumulator > SCROLL_ACCUMULATOR_THRESHOLD && !isHeaderHidden) {
+            isHeaderHidden = true;
+            stickyHeader.classList.remove('show-instant');
+            stickyHeader.classList.add('hide-smooth');
+            scrollAccumulator = 0;
+          } else if (scrollAccumulator < -SCROLL_ACCUMULATOR_THRESHOLD && isHeaderHidden) {
+            isHeaderHidden = false;
+            stickyHeader.classList.remove('hide-smooth');
+            stickyHeader.classList.add('show-instant');
+            scrollAccumulator = 0;
+          }
+        } else if (scrollTop < (HIDE_THRESHOLD - SCROLL_HYSTERESIS)) {
+          if (isHeaderHidden) {
+            isHeaderHidden = false;
+            stickyHeader.classList.remove('hide-smooth');
+            stickyHeader.classList.add('show-instant');
+            scrollAccumulator = 0;
+          }
+        }
+
+        lastScrollTop = scrollTop;
+      }, { passive: true });
+
+      // ============================================
+      // THEME TOGGLE — light / dark
+      // Initial class is set by the pre-render script in <head>; this hooks up
+      // the click handler and keeps the icon in sync.
+      // ============================================
+      const themeToggleBtn = document.getElementById('theme-toggle-btn');
+      const themeToggleIcon = document.getElementById('theme-toggle-icon');
+      const syncThemeIcon = () => {
+        const isDark = document.documentElement.classList.contains('dark');
+        themeToggleIcon.textContent = isDark ? 'light_mode' : 'dark_mode';
+        themeToggleBtn.title = isDark ? 'Switch to light mode' : 'Switch to dark mode';
+      };
+      syncThemeIcon();
+
+      themeToggleBtn.addEventListener('click', () => {
+        const willBeDark = !document.documentElement.classList.contains('dark');
+        document.documentElement.classList.toggle('dark', willBeDark);
+        // Keep the inline bg in sync so over-scroll matches the new theme
+        const bg = willBeDark ? '#0F172A' : '#ECEFF1';
+        document.documentElement.style.backgroundColor = bg;
+        if (document.body) document.body.style.backgroundColor = bg;
+        try {
+          localStorage.setItem('rewst-roadmap-theme', willBeDark ? 'dark' : 'light');
+        } catch (e) { /* private mode */ }
+        syncThemeIcon();
+      });
+
+      // ============================================
+      // SLIDE-OUT DRAWER — generic open/close, content is set by page modules
+      // ============================================
+      const filterOverlay = document.getElementById('filter-overlay');
+      const filterDrawer = document.getElementById('filter-drawer');
+
+      const openDrawer = () => {
+        filterOverlay.classList.remove('hidden');
+        filterOverlay.classList.add('open');
+        filterDrawer.classList.add('open');
+        // Force the transform inline — Tailwind CDN's runtime composes its
+        // own `transform` value via custom properties and can swallow class-
+        // based overrides depending on injection order. Inline always wins.
+        filterDrawer.style.transform = 'translateX(0)';
+      };
+
+      const closeDrawer = () => {
+        filterOverlay.classList.remove('open');
+        filterDrawer.classList.remove('open');
+        filterDrawer.style.transform = ''; // back to translate-x-full default
+        setTimeout(() => { filterOverlay.classList.add('hidden'); }, 300);
+      };
+
+      document.getElementById('close-filter-drawer').addEventListener('click', closeDrawer);
+      filterOverlay.addEventListener('click', closeDrawer);
+
+      // Expose to page modules (and parent console for debugging)
+      window.openDrawer = openDrawer;
+      window.closeDrawer = closeDrawer;
+
+      // ============================================
+      // PAGE RENDER FUNCTIONS
+      // ============================================
+
+      {{ PAGE_ROADMAP }}
+
+      // ============================================
+      // BOOT
+      // ============================================
+      debugLog("App ready - rendering initial page");
+      pages[currentPage].render();
+
+    })();
+  </script>
+
+</body>
+</html>

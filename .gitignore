@@ -1,0 +1,12 @@
+# macOS
+.DS_Store
+
+# Node
+node_modules/
+
+# Editor settings
+.vscode/
+.idea/
+
+# Claude session/config noise
+.claude/
