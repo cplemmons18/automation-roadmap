@@ -1,12 +1,12 @@
-# Rewst App Builder Template
+# Automation Roadmap — Architecture and Patterns
 
-Barebones template for building single-page apps on the Rewst App Builder platform. Everything compiles into ONE HTML file that gets pasted into Rewst.
+The deep-dive reference for how this app is built. If the README answers "what is it and how do I deploy it," this file answers "how is it put together and how do I modify it." Compiled into ONE HTML file that gets pasted into Rewst's App Builder.
 
 ## Living Reference
 
-This file is a reference, not a strict spec. Patterns described here are how things have been built in this codebase so far — not the only way to build them, and not gates a new feature has to pass through. When you add functionality that isn't documented here, extend this file in the same pass rather than overwriting prior sections. The "Modules built in this codebase" section at the bottom is where most of the accumulated knowledge lives — append new modules there as they're built.
+This file is a reference, not a strict spec. Patterns described here are how things have been built so far — not the only way to build them, and not gates a new feature has to pass through. When you add functionality that isn't documented here, extend this file in the same pass rather than overwriting prior sections. The "Modules built in this codebase" section at the bottom is where most of the accumulated knowledge lives — append new modules there as they're built.
 
-Older sections higher up may describe template-era behavior that's since been changed or replaced. When in doubt about the *current* state, the lower sections (and the actual code) win.
+Older sections higher up may describe earlier behavior that's since been changed or replaced. When in doubt about the *current* state, the lower sections (and the actual code) win.
 
 ## CRITICAL: How This Works
 
@@ -26,19 +26,20 @@ dashboard-spa-main-template.html   # THE main file. HTML shell + all JS logic.
 build.js                           # Build script. Maps markers to files.
 dist/                              # Build output. This is what goes into Rewst.
 
-src/                               # Core libraries — shared across all pages
+src/                               # Shared libraries
   rewst-dom-builder.js             # RewstDOM: tables, metric cards, autocomplete, alerts, etc.
   zip-graphql-js-lib-v2-optimized.js  # RewstApp: GraphQL API wrapper for Rewst platform
   rewst-override-tailwind.css      # Rewst brand CSS theme layered on Tailwind
 
-pages/                             # One JS file per sidebar page
-  components.js                    # Kitchen Sink — shows all available components
-  starter.js                       # Blank starter page — copy this for new pages
+pages/                             # Page render logic
+  roadmap.js                       # The Automation Roadmap page
 ```
 
-## How to Add a New Page
+The Automation Roadmap is a single-page app, so `pages/` only has `roadmap.js`. The structure supports multiple pages if you want to extend (see "Adding a New Page" below).
 
-This is the most common task. Follow these steps EXACTLY:
+## Adding a New Page
+
+If you want to extend the roadmap with an additional page (e.g. a separate analytics view, a settings page, etc.), follow these steps:
 
 ### Step 1: Create the page file
 
@@ -578,13 +579,13 @@ Six business-outcome categories used to live in `ROADMAP_ENUMS.category`:
 - Reporting & Visibility
 - Customer Experience
 
-Was required on every row; drove the "Value by Category" hero tile and the "By Category" kanban grouping. Director-driven feedback flipped this to multi-select tags; see the next section.
+Was required on every row; drove the "Value by Category" hero tile and the "By Category" kanban grouping. Feedback during early use flipped this to multi-select tags; see the next section.
 
 ## Benefit Tag Taxonomy + Multi-Select Pattern
 
 The user-facing label is **"Benefit Tags"** everywhere in the UI (drawer field, table column header, inline editor placeholder, toast messages). The underlying data field stays as `row.tags` for code/data continuity, but every user-visible reference says "benefit tags."
 
-`ROADMAP_ENUMS.tags` is a **7-value benefit-oriented list**. Benefit tags describe the *business outcome* an automation delivers, not what the automation does. ("Onboard New User" is the automation; "IT Team Efficiency" is the benefit tag.) Earlier iterations used 13 descriptor-style tags and a single-select `category` — both got collapsed into this benefit set after director feedback that descriptor tags don't tell the business-leader story.
+`ROADMAP_ENUMS.tags` is a **7-value benefit-oriented list**. Benefit tags describe the *business outcome* an automation delivers, not what the automation does. ("Onboard New User" is the automation; "IT Team Efficiency" is the benefit tag.) Earlier iterations used 13 descriptor-style tags and a single-select `category` — both got collapsed into this benefit set after feedback that descriptor tags don't tell the business-leader story.
 
 The 7 benefit tags + their BADGE_MAP color:
 
